@@ -3,27 +3,13 @@
 <head>
   <title>Face Recognition</title>
 
-  <!-- Face API -->
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
-  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
   <style>
-    body {
-      background: #111;
-      color: white;
-      text-align: center;
-      font-family: Arial;
-    }
-    video {
-      border-radius: 10px;
-    }
-    input, button {
-      padding: 10px;
-      margin: 5px;
-    }
+    body { background:#111; color:white; text-align:center; }
   </style>
 </head>
 
@@ -52,12 +38,15 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// LOAD MODELS
+// ✅ LOAD MODELS FROM CDN (NO LOCAL FILES)
 async function loadModels() {
+  const url = "https://justadudewhohacks.github.io/face-api.js/models";
+
   status.innerText = "Loading models...";
-  await faceapi.nets.ssdMobilenetv1.loadFromUri('./models/ssd_mobilenetv1');
-  await faceapi.nets.faceRecognitionNet.loadFromUri('./models/face_recognition');
-  await faceapi.nets.faceLandmark68Net.loadFromUri('./models/face_landmark_68');
+  await faceapi.nets.ssdMobilenetv1.loadFromUri(url);
+  await faceapi.nets.faceRecognitionNet.loadFromUri(url);
+  await faceapi.nets.faceLandmark68Net.loadFromUri(url);
+
   status.innerText = "Models Loaded ✅";
 }
 
@@ -73,70 +62,46 @@ window.onload = async () => {
   await startCamera();
 };
 
-// ADD FACE (SMART + NO FREEZE)
+// ADD FACE
 async function saveFace() {
   const name = document.getElementById("name").value;
   if (!name) return alert("Enter name");
 
-  const steps = ["Look straight", "Turn right", "Turn left"];
+  status.innerText = "Detecting face...";
 
-  for (let step of steps) {
-    status.innerText = step;
+  const detection = await faceapi.detectSingleFace(video)
+    .withFaceLandmarks()
+    .withFaceDescriptor();
 
-    let detected = false;
-    let attempts = 0;
-
-    while (!detected && attempts < 10) {
-      const detection = await faceapi.detectSingleFace(video)
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-
-      if (detection) {
-        await db.collection("faces").add({
-          name: name,
-          descriptor: Array.from(detection.descriptor)
-        });
-
-        detected = true;
-        status.innerText = step + " ✅ captured";
-      } else {
-        status.innerText = step + " (adjust face...)";
-        await new Promise(r => setTimeout(r, 500));
-        attempts++;
-      }
-    }
-
-    if (!detected) {
-      alert("Face not detected properly. Try again.");
-      return;
-    }
-
-    await new Promise(r => setTimeout(r, 1000));
+  if (!detection) {
+    alert("Face not detected");
+    return;
   }
 
-  status.innerText = "All samples saved ✅";
+  await db.collection("faces").add({
+    name: name,
+    descriptor: Array.from(detection.descriptor)
+  });
+
+  status.innerText = "Face Saved ✅";
 }
 
-// START RECOGNITION (FAST VERSION)
+// RECOGNITION
 async function startRecognition() {
   status.innerText = "Loading faces...";
 
   const snapshot = await db.collection("faces").get();
-  const map = {};
+  const labeled = [];
 
   snapshot.forEach(doc => {
     const d = doc.data();
-    if (!map[d.name]) map[d.name] = [];
-    map[d.name].push(new Float32Array(d.descriptor));
+    labeled.push(new faceapi.LabeledFaceDescriptors(
+      d.name,
+      [new Float32Array(d.descriptor)]
+    ));
   });
 
-  const labeled = Object.keys(map).map(name =>
-    new faceapi.LabeledFaceDescriptors(name, map[name])
-  );
-
   const matcher = new faceapi.FaceMatcher(labeled, 0.5);
-
-  status.innerText = "Recognition Running 🚀";
 
   const canvas = faceapi.createCanvasFromMedia(video);
   document.body.append(canvas);
@@ -145,12 +110,9 @@ async function startRecognition() {
   faceapi.matchDimensions(canvas, size);
 
   setInterval(async () => {
-    const detections = await faceapi.detectAllFaces(
-      video,
-      new faceapi.TinyFaceDetectorOptions()
-    )
-    .withFaceLandmarks()
-    .withFaceDescriptors();
+    const detections = await faceapi.detectAllFaces(video)
+      .withFaceLandmarks()
+      .withFaceDescriptors();
 
     const resized = faceapi.resizeResults(detections, size);
 
