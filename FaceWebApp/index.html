@@ -3,9 +3,10 @@
 <head>
   <title>Face Recognition</title>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <!-- FACE API (FIXED) -->
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
-  <!-- Firebase COMPAT (IMPORTANT) -->
+  <!-- FIREBASE COMPAT (NO ERRORS) -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
@@ -38,6 +39,7 @@
 
     button {
       cursor: pointer;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -53,14 +55,14 @@
   <button onclick="saveFace()">Add Face</button>
   <button onclick="startRecognition()">Start</button>
 
-  <div id="status">Loading...</div>
+  <div id="status">Loading models...</div>
 </div>
 
 <script>
 const firebaseConfig = {
   apiKey: "AIzaSyBYjut7RJMj4oJYo9y9nm_2Li691Qt6aCI",
   authDomain: "facerecog-dc727.firebaseapp.com",
-  projectId: "facerecog-dc727",
+  projectId: "facerecog-dc727"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -69,27 +71,31 @@ const db = firebase.firestore();
 const video = document.getElementById('video');
 const statusText = document.getElementById('status');
 
-// Load models (FIXED PATHS)
-Promise.all([
-  faceapi.nets.ssdMobilenetv1.loadFromUri('/models/ssd_mobilenetv1'),
-  faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition'),
-  faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68')
-]).then(startVideo);
-
-function startVideo() {
-  navigator.mediaDevices.getUserMedia({ video: true })
-    .then(stream => {
-      video.srcObject = stream;
-      statusText.innerText = "Camera Ready";
-    });
+// ✅ LOAD MODELS (CORRECT PATHS)
+async function loadModels() {
+  await faceapi.nets.ssdMobilenetv1.loadFromUri('/models/ssd_mobilenetv1');
+  await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition');
+  await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68');
+  statusText.innerText = "Models Loaded";
 }
 
-// ADD FACE (3 steps)
+async function startVideo() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+}
+
+// INIT
+window.onload = async () => {
+  await loadModels();
+  await startVideo();
+};
+
+// 🎯 ADD FACE
 async function saveFace() {
   const name = document.getElementById('name').value;
   if (!name) return alert("Enter name");
 
-  const steps = ["Look Straight", "Turn RIGHT", "Turn LEFT"];
+  const steps = ["Look Straight", "Turn Right", "Turn Left"];
 
   for (let step of steps) {
     for (let i = 3; i > 0; i--) {
@@ -115,7 +121,7 @@ async function saveFace() {
   statusText.innerText = "Saved 3 samples!";
 }
 
-// START RECOGNITION
+// 🎯 RECOGNITION
 async function startRecognition() {
   statusText.innerText = "Loading faces...";
 
@@ -134,7 +140,7 @@ async function startRecognition() {
 
   const matcher = new faceapi.FaceMatcher(labeled, 0.5);
 
-  statusText.innerText = "Running";
+  statusText.innerText = "Running...";
 
   const canvas = faceapi.createCanvasFromMedia(video);
   document.body.append(canvas);
@@ -148,6 +154,7 @@ async function startRecognition() {
       .withFaceDescriptors();
 
     const resized = faceapi.resizeResults(detections, size);
+
     canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
 
     resized.forEach(d => {
