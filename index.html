@@ -6,7 +6,7 @@
   <!-- Face API -->
   <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
 
-  <!-- Firebase (COMPAT version – stable) -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
@@ -40,7 +40,6 @@
 <p id="status">Loading...</p>
 
 <script>
-// 🔥 Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyBYjut7RJMj4oJYo9y9nm_2Li691Qt6aCI",
   authDomain: "facerecog-dc727.firebaseapp.com",
@@ -53,27 +52,27 @@ const db = firebase.firestore();
 const video = document.getElementById("video");
 const status = document.getElementById("status");
 
-// ✅ Load models
+// ✅ FIXED MODEL PATHS FOR GITHUB
 async function loadModels() {
-  await faceapi.nets.ssdMobilenetv1.loadFromUri('/models/ssd_mobilenetv1');
-  await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68');
-  await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition');
-  status.innerText = "Models Loaded";
+  await faceapi.nets.ssdMobilenetv1.loadFromUri('./models/ssd_mobilenetv1');
+  await faceapi.nets.faceLandmark68Net.loadFromUri('./models/face_landmark_68');
+  await faceapi.nets.faceRecognitionNet.loadFromUri('./models/face_recognition');
+  status.innerText = "Models Loaded ✅";
 }
 
-// ✅ Start camera
+// Start camera
 async function startCamera() {
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   video.srcObject = stream;
 }
 
-// ✅ Initialize
+// Init
 window.onload = async function () {
   await loadModels();
   await startCamera();
 };
 
-// ✅ Add face (3 steps)
+// Add face (3-step)
 async function saveFace() {
   const name = document.getElementById("name").value;
   if (!name) return alert("Enter name");
@@ -99,10 +98,10 @@ async function saveFace() {
     });
   }
 
-  status.innerText = "Saved!";
+  status.innerText = "Saved 3 samples ✅";
 }
 
-// ✅ Start recognition
+// Recognition
 async function startRecognition() {
   status.innerText = "Loading faces...";
 
@@ -120,6 +119,8 @@ async function startRecognition() {
   );
 
   const matcher = new faceapi.FaceMatcher(labeled, 0.5);
+
+  status.innerText = "Recognition Running 🚀";
 
   const canvas = faceapi.createCanvasFromMedia(video);
   document.body.append(canvas);
