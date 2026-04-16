@@ -33,13 +33,16 @@
 
 <video id="video" width="640" height="480" autoplay muted></video><br>
 
-<input type="text" id="name" placeholder="Enter Name">
+<input id="name" placeholder="Enter Name">
 <button onclick="saveFace()">Add Face</button>
 <button onclick="startRecognition()">Start</button>
 
 <p id="status">Loading...</p>
 
 <script>
+const status = document.getElementById("status");
+const video = document.getElementById("video");
+
 const firebaseConfig = {
   apiKey: "AIzaSyBYjut7RJMj4oJYo9y9nm_2Li691Qt6aCI",
   authDomain: "facerecog-dc727.firebaseapp.com",
@@ -49,30 +52,28 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-const video = document.getElementById("video");
-const status = document.getElementById("status");
-
-// ✅ FIXED MODEL PATHS FOR GITHUB
+// LOAD MODELS
 async function loadModels() {
+  status.innerText = "Loading models...";
   await faceapi.nets.ssdMobilenetv1.loadFromUri('./models/ssd_mobilenetv1');
-  await faceapi.nets.faceLandmark68Net.loadFromUri('./models/face_landmark_68');
   await faceapi.nets.faceRecognitionNet.loadFromUri('./models/face_recognition');
+  await faceapi.nets.faceLandmark68Net.loadFromUri('./models/face_landmark_68');
   status.innerText = "Models Loaded ✅";
 }
 
-// Start camera
+// CAMERA
 async function startCamera() {
   const stream = await navigator.mediaDevices.getUserMedia({ video: true });
   video.srcObject = stream;
 }
 
-// Init
-window.onload = async function () {
+// INIT
+window.onload = async () => {
   await loadModels();
   await startCamera();
 };
 
-// Add face (3-step)
+// ADD FACE (SMART + NO FREEZE)
 async function saveFace() {
   const name = document.getElementById("name").value;
   if (!name) return alert("Enter name");
@@ -81,27 +82,42 @@ async function saveFace() {
 
   for (let step of steps) {
     status.innerText = step;
-    await new Promise(r => setTimeout(r, 2000));
 
-    const detection = await faceapi.detectSingleFace(video)
-      .withFaceLandmarks()
-      .withFaceDescriptor();
+    let detected = false;
+    let attempts = 0;
 
-    if (!detection) {
-      alert("Face not detected");
+    while (!detected && attempts < 10) {
+      const detection = await faceapi.detectSingleFace(video)
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+
+      if (detection) {
+        await db.collection("faces").add({
+          name: name,
+          descriptor: Array.from(detection.descriptor)
+        });
+
+        detected = true;
+        status.innerText = step + " ✅ captured";
+      } else {
+        status.innerText = step + " (adjust face...)";
+        await new Promise(r => setTimeout(r, 500));
+        attempts++;
+      }
+    }
+
+    if (!detected) {
+      alert("Face not detected properly. Try again.");
       return;
     }
 
-    await db.collection("faces").add({
-      name: name,
-      descriptor: Array.from(detection.descriptor)
-    });
+    await new Promise(r => setTimeout(r, 1000));
   }
 
-  status.innerText = "Saved 3 samples ✅";
+  status.innerText = "All samples saved ✅";
 }
 
-// Recognition
+// START RECOGNITION (FAST VERSION)
 async function startRecognition() {
   status.innerText = "Loading faces...";
 
@@ -129,9 +145,12 @@ async function startRecognition() {
   faceapi.matchDimensions(canvas, size);
 
   setInterval(async () => {
-    const detections = await faceapi.detectAllFaces(video)
-      .withFaceLandmarks()
-      .withFaceDescriptors();
+    const detections = await faceapi.detectAllFaces(
+      video,
+      new faceapi.TinyFaceDetectorOptions()
+    )
+    .withFaceLandmarks()
+    .withFaceDescriptors();
 
     const resized = faceapi.resizeResults(detections, size);
 
