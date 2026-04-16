@@ -1,183 +1,151 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Smart Face Recognition</title>
+  <title>Face Recognition</title>
 
-  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+  <!-- Face API -->
+  <script src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
 
-  <!-- Firebase v12 (MODULAR) -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs } from "https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyBYjut7RJMj4oJYo9y9nm_2Li691Qt6aCI",
-      authDomain: "facerecog-dc727.firebaseapp.com",
-      projectId: "facerecog-dc727",
-      storageBucket: "facerecog-dc727.firebasestorage.app",
-      messagingSenderId: "596492394833",
-      appId: "1:596492394833:web:196d1e02dc449582d93370"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    const video = document.getElementById('video');
-    const statusText = document.getElementById('status');
-
-    // Load models
-    Promise.all([
-      await faceapi.nets.ssdMobilenetv1.loadFromUri('/models/ssd_mobilenetv1')
-await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68')
-await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition')
-    ]).then(startVideo);
-
-    function startVideo() {
-      navigator.mediaDevices.getUserMedia({ video: {} })
-        .then(stream => {
-          video.srcObject = stream;
-          statusText.innerText = "✅ Camera Ready";
-        });
-    }
-
-    // 🎯 ADD FACE (3 steps)
-    window.saveFace = async function () {
-      const name = document.getElementById('name').value;
-      if (!name) return alert("Enter name");
-
-      const steps = [
-        "📸 Look Straight",
-        "📸 Turn RIGHT",
-        "📸 Turn LEFT"
-      ];
-
-      let descriptors = [];
-
-      for (let i = 0; i < steps.length; i++) {
-        for (let c = 3; c > 0; c--) {
-          statusText.innerText = steps[i] + " in " + c;
-          await new Promise(r => setTimeout(r, 1000));
-        }
-
-        const detection = await faceapi.detectSingleFace(video)
-          .withFaceLandmarks()
-          .withFaceDescriptor();
-
-        if (!detection) {
-          alert("Face not detected");
-          return;
-        }
-
-        descriptors.push(Array.from(detection.descriptor));
-      }
-
-      for (let d of descriptors) {
-        await addDoc(collection(db, "faces"), {
-          name: name,
-          descriptor: d
-        });
-      }
-
-      statusText.innerText = "✅ Saved 3 samples!";
-    }
-
-    // 🎯 RECOGNITION
-    window.startRecognition = async function () {
-      statusText.innerText = "Loading faces...";
-
-      const querySnapshot = await getDocs(collection(db, "faces"));
-      const map = {};
-
-      querySnapshot.forEach(doc => {
-        const d = doc.data();
-        if (!map[d.name]) map[d.name] = [];
-        map[d.name].push(new Float32Array(d.descriptor));
-      });
-
-      const labeled = Object.keys(map).map(name =>
-        new faceapi.LabeledFaceDescriptors(name, map[name])
-      );
-
-      const matcher = new faceapi.FaceMatcher(labeled, 0.5);
-
-      statusText.innerText = "🚀 Running";
-
-      const canvas = faceapi.createCanvasFromMedia(video);
-      document.body.append(canvas);
-
-      const size = { width: video.width, height: video.height };
-      faceapi.matchDimensions(canvas, size);
-
-      setInterval(async () => {
-        const detections = await faceapi.detectAllFaces(video)
-          .withFaceLandmarks()
-          .withFaceDescriptors();
-
-        const resized = faceapi.resizeResults(detections, size);
-        canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-
-        resized.forEach(d => {
-          const match = matcher.findBestMatch(d.descriptor);
-          const box = d.detection.box;
-
-          new faceapi.draw.DrawBox(box, {
-            label: match.toString()
-          }).draw(canvas);
-        });
-
-      }, 120);
-    }
-
-  </script>
+  <!-- Firebase (simple compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
   <style>
     body {
-      font-family: Arial;
-      background: #1f1f1f;
+      background: #111;
       color: white;
       text-align: center;
+      font-family: Arial;
     }
-
-    .box {
-      background: #2c2c2c;
-      padding: 20px;
-      margin: auto;
-      width: 720px;
-      border-radius: 15px;
-    }
-
     video {
       border-radius: 10px;
-      margin-top: 10px;
     }
-
-    input, button {
+    button, input {
       padding: 10px;
       margin: 5px;
-      border-radius: 8px;
-      border: none;
-    }
-
-    button {
-      cursor: pointer;
-      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
 
-<div class="box">
-  <h2>Face Recognition System</h2>
+<h2>Face Recognition</h2>
 
-  <video id="video" width="640" height="480" autoplay muted></video><br>
+<video id="video" width="640" height="480" autoplay muted></video><br>
 
-  <input type="text" id="name" placeholder="Enter Name">
-  <button onclick="saveFace()">Add Face</button>
-  <button onclick="startRecognition()">Start</button>
+<input type="text" id="name" placeholder="Enter Name">
+<button onclick="saveFace()">Add Face</button>
+<button onclick="startRecognition()">Start</button>
 
-  <div id="status">Loading...</div>
-</div>
+<p id="status">Loading...</p>
+
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyBYjut7RJMj4oJYo9y9nm_2Li691Qt6aCI",
+  authDomain: "facerecog-dc727.firebaseapp.com",
+  projectId: "facerecog-dc727"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+const video = document.getElementById("video");
+const status = document.getElementById("status");
+
+// Load models
+async function loadModels() {
+  await faceapi.nets.ssdMobilenetv1.loadFromUri('/models/ssd_mobilenetv1');
+  await faceapi.nets.faceLandmark68Net.loadFromUri('/models/face_landmark_68');
+  await faceapi.nets.faceRecognitionNet.loadFromUri('/models/face_recognition');
+  status.innerText = "Models Loaded";
+}
+
+// Start camera
+async function startCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  video.srcObject = stream;
+}
+
+// Start everything
+window.onload = async () => {
+  await loadModels();
+  await startCamera();
+};
+
+// Add face (3 steps)
+async function saveFace() {
+  const name = document.getElementById("name").value;
+  if (!name) return alert("Enter name");
+
+  const steps = ["Look straight", "Turn right", "Turn left"];
+
+  for (let step of steps) {
+    status.innerText = step;
+    await new Promise(r => setTimeout(r, 2000));
+
+    const detection = await faceapi.detectSingleFace(video)
+      .withFaceLandmarks()
+      .withFaceDescriptor();
+
+    if (!detection) {
+      alert("Face not detected");
+      return;
+    }
+
+    await db.collection("faces").add({
+      name: name,
+      descriptor: Array.from(detection.descriptor)
+    });
+  }
+
+  status.innerText = "Saved!";
+}
+
+// Start recognition
+async function startRecognition() {
+  status.innerText = "Loading faces...";
+
+  const snapshot = await db.collection("faces").get();
+  const map = {};
+
+  snapshot.forEach(doc => {
+    const d = doc.data();
+    if (!map[d.name]) map[d.name] = [];
+    map[d.name].push(new Float32Array(d.descriptor));
+  });
+
+  const labeled = Object.keys(map).map(name =>
+    new faceapi.LabeledFaceDescriptors(name, map[name])
+  );
+
+  const matcher = new faceapi.FaceMatcher(labeled, 0.5);
+
+  const canvas = faceapi.createCanvasFromMedia(video);
+  document.body.append(canvas);
+
+  const size = { width: video.width, height: video.height };
+  faceapi.matchDimensions(canvas, size);
+
+  setInterval(async () => {
+    const detections = await faceapi.detectAllFaces(video)
+      .withFaceLandmarks()
+      .withFaceDescriptors();
+
+    const resized = faceapi.resizeResults(detections, size);
+
+    canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
+
+    resized.forEach(d => {
+      const match = matcher.findBestMatch(d.descriptor);
+
+      new faceapi.draw.DrawBox(d.detection.box, {
+        label: match.toString()
+      }).draw(canvas);
+    });
+
+  }, 150);
+}
+</script>
 
 </body>
 </html>
